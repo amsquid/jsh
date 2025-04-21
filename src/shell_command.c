@@ -3,8 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <pwd.h>
+
+char** aliasNames;
+char** aliasValues;
+int aliases = 0;
 
 char** split(char* str, char* delim, int* amount) {
   int initial = 4;
@@ -32,11 +37,38 @@ char** split(char* str, char* delim, int* amount) {
   return out;
 }
 
-int set(int argc, char* argv[]) {
-  if(argc == 1) {
-
+int alias(int argc, char* argv[]) {
+  if(argc < 3) {
+    printf("alias <alias> <command>\n");
+    return 0;
   }
 
+  char* aliasName = argv[1];
+  int size = strlen(argv[2]);
+  char* command = malloc(size);
+  strcpy(command, argv[2]);
+  
+  int i = 3;
+  
+  while(argv[i] != NULL) {
+    int currSize = size;
+    size += strlen(argv[i]) + 1; // extra 1 for a space
+    command = realloc(command, size);
+    strcat(command, " ");
+    strcat(command, argv[i]);
+    i++;
+  }
+  aliases++;
+
+  aliasNames = realloc(aliasNames, sizeof(char*) * aliases);
+  aliasValues = realloc(aliasValues, sizeof(char*) * aliases);
+
+  aliasNames[aliases - 1] = malloc(strlen(aliasName));
+  strcpy(aliasNames[aliases - 1], aliasName);
+
+  aliasValues[aliases - 1] = malloc(strlen(command));
+  strcpy(aliasValues[aliases - 1], command);
+  
   return 0;
 }
 
@@ -63,6 +95,30 @@ int cd(int argc, char* argv[]) {
   return 0;
 }
 
+int runProgram(char* argv[]) {
+  int status;
+  pid_t wpid;
+  pid_t pid = fork();
+
+  if(pid == -1) {
+    printf("Failed to create child process\n");
+    return -1;
+  }
+
+  if(pid == 0) {
+    if(execvp(argv[0], argv) == -1) {
+      printf("Failed to execute command\n");
+      exit(-1);
+    }
+    exit(0);
+  } else if(pid > 0) {
+    wait(NULL);
+  }
+
+  return 0;
+}
+
+
 int parseShellCommand(int argc, char* argv[]) {
   if(strcmp(argv[0], "exit") == 0) {
     return EXIT_CODE;
@@ -72,10 +128,31 @@ int parseShellCommand(int argc, char* argv[]) {
     return cd(argc, argv);
   }
 
-  if(strcmp(argv[0], "set") == 0) {
-    return set(argc, argv);
+  if(strcmp(argv[0], "alias") == 0) {
+    return alias(argc, argv);
+  }
+
+  // Check for alias
+  for(int i = 0; i < aliases; i++) {
+    if(strcmp(aliasNames[i], argv[0]) == 0) {
+      int am = 0;
+      char** splitArgs = split(aliasValues[i], " ", &am);
+      runProgram(splitArgs);
+      free(splitArgs);
+      return 0;
+    }
   }
 
   return -1;
+}
+
+void clear_aliases() {
+  for(int i = 0; i < aliases; i++) {
+    free(aliasNames[i]);
+    free(aliasValues[i]);
+  }
+
+  free(aliasNames);
+  free(aliasValues);
 }
 

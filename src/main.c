@@ -33,29 +33,6 @@ int start_menu() {
   return 0;
 }
 
-int runProgram(char* argv[]) {
-  int status;
-  pid_t wpid;
-  pid_t pid = fork();
-
-  if(pid == -1) {
-    printf("Failed to create child process\n");
-    return -1;
-  }
-
-  if(pid == 0) {
-    if(execvp(argv[0], argv) == -1) {
-      printf("Failed to execute command\n");
-      exit(-1);
-    }
-    exit(0);
-  } else if(pid > 0) {
-    wait(NULL);
-  }
-
-  return 0;
-}
-
 int parseCommand(char* cmd) {
   int argc;
   char** argv = split(cmd, " ", &argc);
