@@ -4,8 +4,8 @@
 #define EXIT_CODE 1000
 
 char** split(char* str, char* delim, int* amount);
-int runProgram(char* argv[]);
-int parseShellCommand(int argc, char* argv[]);
+int run_program(char* argv[]);
+int parse_shell_command(int argc, char* argv[]);
 
 void clear_aliases();
 

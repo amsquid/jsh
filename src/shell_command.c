@@ -32,7 +32,7 @@ char** split(char* str, char* delim, int* amount) {
 
   out = realloc(out, sizeof(out) + sizeof(NULL));
   out[i] = NULL;
-  
+ 
   *amount = i;
   return out;
 }
@@ -73,7 +73,7 @@ int alias(int argc, char* argv[]) {
 }
 
 int cd(int argc, char* argv[]) {
-  if(argc == 1 || strcmp(argv[1], "~") == 0) {
+  if(argc == 1) {
     uid_t uid = getuid();
     struct passwd* pwd = getpwuid(uid);
     if(!pwd) {
@@ -95,7 +95,7 @@ int cd(int argc, char* argv[]) {
   return 0;
 }
 
-int runProgram(char* argv[]) {
+int run_program(char* argv[]) {
   int status;
   pid_t wpid;
   pid_t pid = fork();
@@ -118,8 +118,22 @@ int runProgram(char* argv[]) {
   return 0;
 }
 
+int set(int argc, char* argv[]) {
+  if(argc != 3) {
+    printf("Sets an environment variable\nset <name> <value>\n");
+    return -1;
+  }
 
-int parseShellCommand(int argc, char* argv[]) {
+  char* name = argv[1];
+  char* value = argv[2];
+
+  setenv(name, value, 1);
+
+  return 0;
+}
+
+
+int parse_shell_command(int argc, char* argv[]) {
   if(strcmp(argv[0], "exit") == 0) {
     return EXIT_CODE;
   }
@@ -132,12 +146,16 @@ int parseShellCommand(int argc, char* argv[]) {
     return alias(argc, argv);
   }
 
+  if(strcmp(argv[0], "set") == 0) {
+    return set(argc, argv);
+  }
+
   // Check for alias
   for(int i = 0; i < aliases; i++) {
     if(strcmp(aliasNames[i], argv[0]) == 0) {
       int am = 0;
       char** splitArgs = split(aliasValues[i], " ", &am);
-      runProgram(splitArgs);
+      run_program(splitArgs);
       free(splitArgs);
       return 0;
     }

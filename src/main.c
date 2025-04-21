@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <pwd.h>
 
 #include "shell_command.h"
 #include "colors.h"
@@ -12,12 +13,68 @@
 pid_t parentPid;
 int debug = -1;
 
+char* homeDir;
 char username[128], hostname[128];
 
+int parse_command(char* cmd) {
+  int argc;
+  char** argv = split(cmd, " ", &argc);
+  char** formattedArgv;
+
+  while(argv[argc] != NULL) argc++;
+  for(int i = 0; i < argc; i++) { // env and ~ parsing
+    char* arg = argv[i];
+    if(arg[0] == '~') {
+      char* rest = argv[i] + 1;
+      char* newPath = malloc(strlen(homeDir) + strlen(rest));
+      strcpy(newPath, homeDir);
+      strcat(newPath, rest);
+      argv[i] = newPath;
+    }
+    if(arg[0] != '$') continue;
+    char* envName = arg + 1;
+    char* envValue = getenv(envName);
+    argv[i] = envValue;
+  }
+
+  int out = parse_shell_command(argc, argv);
+  if(out >= 0) return out;
+  else run_program(argv);
+
+  free(argv);
+  return 0;
+}
 /*
  * Overwriting signals if needed to do nothing
  */
-void handleSignal(int sig) { }
+void handle_signal(int sig) { }
+
+void handle_rc() {
+  char* fileName = "/.jshrc";
+  char* rcFile = malloc(strlen(homeDir) + strlen(fileName));
+  strcpy(rcFile, homeDir);
+  strcat(rcFile, fileName);
+
+  FILE* file;
+
+  if(access(rcFile, F_OK) == 0)
+    file = fopen(rcFile, "r");
+  else {
+    file = fopen(rcFile, "wr");
+    fputc(' ', file);
+  }
+
+  char line[1024];
+ 
+  while(fgets(line, 1024, file)) {
+    if(strcmp(line, "") == 0) continue;
+    line[strlen(line) - 1] = '\0'; // Cutting off the extra \n
+    parse_command(line);
+  }
+
+  fclose(file);
+  free(rcFile);
+}
 
 int start_menu() {
   printf("==== JSH ====\nSigned in as %s@%s\nPlease select an option from the menu below:\n1) Continue to shell\n2) Log out\n> ", username, hostname);
@@ -33,30 +90,14 @@ int start_menu() {
   return 0;
 }
 
-int parseCommand(char* cmd) {
-  int argc;
-  char** argv = split(cmd, " ", &argc);
-  char** formattedArgv;
-
-  while(argv[argc] != NULL) argc++;
-  for(int i = 0; i < argc; i++) { // env parsing
-    char* arg = argv[i];
-    if(arg[0] != '$') continue;
-    char* envName = arg + 1;
-    char* envValue = getenv(envName);
-    argv[i] = envValue;
-  }
-
-  int out = parseShellCommand(argc, argv);
-  if(out >= 0) return out;
-  else runProgram(argv);
-
-  free(argv);
-  return 0;
-}
-
 int main(int argc, char* argv[]) {
-  signal(SIGINT, handleSignal);
+  uid_t uid = getuid();
+  struct passwd* pwd = getpwuid(uid);
+  homeDir = pwd->pw_dir;
+
+  signal(SIGINT, handle_signal);
+
+  handle_rc();
 
   gethostname(hostname, 128);
   getlogin_r(username, 128);
@@ -83,7 +124,7 @@ int main(int argc, char* argv[]) {
     printf(fmt, BLUE, username, hostname, WHITE, cwd, BLUE, RESET);
     fgets(command, 1024, stdin);
     command[strlen(command) - 1] = '\0';
-    int code = parseCommand(command);
+    int code = parse_command(command);
     if(code == EXIT_CODE) break;
     command[0] = '\0';
   }
