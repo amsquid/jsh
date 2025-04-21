@@ -17,6 +17,8 @@ char* homeDir;
 char username[128], hostname[128];
 
 int parse_command(char* cmd) {
+  if(cmd[0] == '#') return 0;
+
   int argc;
   char** argv = split(cmd, " ", &argc);
   char** formattedArgv;
